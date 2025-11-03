@@ -1,0 +1,22 @@
+{
+    "MQTT":{
+        "USERNAME":"rpi06",
+        "ID":"test"
+    },
+    "PERIPHERALS":[
+       {"TYPE":"BUTTON","NAME":"pin1","PIN":1, "INVERTED":false},
+       {"TYPE":"BUTTON","NAME":"pin2","PIN":2, "INVERTED":true},
+       {"TYPE":"BUTTON","NAME":"pin3","PIN":3, "INVERTED":false},
+       {"TYPE":"BUTTON","NAME":"pin4","PIN":4, "INVERTED":true}
+    ],
+    
+    "SETTINGS":{
+        "PERIODIC_SEND_S":300000,
+        "LOG_COUNT_MQTT":true,
+        "LOG_SEND_RAM":true,
+        "LOG_SEND_PRINT":true,
+        "LOG_SEND_TIME":true,
+        "USE_WDT":true,
+        "WDT_TIMEOUT":8000
+    }
+}

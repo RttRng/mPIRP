@@ -1,0 +1,18 @@
+{
+    "MQTT":{
+        "USERNAME":"rpi04",
+        "ID":"borek"
+    },
+    "PERIPHERALS":[
+        {"TYPE":"RELE","NAME":"rele","PIN":17,"INVERTED":false}
+    ],
+    "SETTINGS":{
+        "PERIODIC_SEND_S":300000,
+        "LOG_COUNT_MQTT":true,
+        "LOG_SEND_RAM":true,
+        "LOG_SEND_PRINT":true,
+        "LOG_SEND_TIME":true,
+        "USE_WDT":true,
+        "WDT_TIMEOUT":8000
+    }
+}

@@ -1,0 +1,23 @@
+{
+    "MQTT":{
+        "USERNAME":"rpi01",
+        "ID":"kotel"
+    },
+    "PERIPHERALS":[
+        {"TYPE":"RELE","NAME":"rele","PIN":22,"INVERTED":false},
+        {"TYPE":"DHT","NAME":"sonda1","PIN":19},
+        {"TYPE":"DHT","NAME":"sonda2","PIN":20},
+        {"TYPE":"DHT","NAME":"sonda3","PIN":21},
+        {"TYPE":"BUTTON","NAME":"ventil","PIN":26, "INVERTED":false}
+    ],
+    
+    "SETTINGS":{
+        "PERIODIC_SEND_S":300000,
+        "LOG_COUNT_MQTT":true,
+        "LOG_SEND_RAM":true,
+        "LOG_SEND_PRINT":true,
+        "LOG_SEND_TIME":true,
+        "USE_WDT":true,
+        "WDT_TIMEOUT":8000
+    }
+}

@@ -1,0 +1,9 @@
+{
+    "PERIODIC_SEND_S":300000,
+    "LOG_COUNT_MQTT":false,
+    "LOG_SEND_RAM":false,
+    "LOG_SEND_PRINT":false,
+    "LOG_SEND_TIME":false,
+    "USE_WDT":true,
+    "WDT_TIMEOUT":8000
+}
