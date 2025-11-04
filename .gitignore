@@ -4,3 +4,4 @@ wifi.json
 *.code-workspace
 /.vscode
 *.txt
+mqtt.json

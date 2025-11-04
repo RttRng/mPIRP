@@ -1,4 +1,5 @@
 {
+    "WIFI":{},
     "MQTT":{
         "USERNAME":"rpi04",
         "ID":"borek"

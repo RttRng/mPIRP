@@ -5,6 +5,8 @@ with open(f"/branches/{identity}/config.json","r") as j:
     config = json.load(j)
 with open("wifi.json","r") as j:
     wifi_config = json.load(j)
+with open("mqtt.json","r") as j:
+    mqtt_config = json.load(j)
 with open("log_override.json","r") as j:
     log_config = json.load(j)
 with open("version.ver","r") as f:
@@ -13,7 +15,8 @@ print("Version:",version)
 print("Identity:",identity)
 update_log = ""
 config["SETTINGS"].update(log_config)
-config.update(wifi_config)
+config["WIFI"].update(wifi_config)
+config["MQTT"].update(mqtt_config)
 import os
 try:
     os.stat("update_flag.txt")
