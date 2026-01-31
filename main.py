@@ -66,6 +66,13 @@ class Logger:
         if self.log_send_print:
             for a in args:
                 self.print_buffer.append(str(a))
+
+    def read_ram_tuple(self):
+        gc.collect()
+        alloc = gc.mem_alloc()
+        free = gc.mem_free()
+        whole = alloc + free
+        return alloc,free,whole,round(alloc/whole,4)
     def read_ram(self):
         gc.collect()
         alloc = gc.mem_alloc()
@@ -121,13 +128,13 @@ class Sonda:
         sleep_ms(750)
         temp = round(self.sensor.read_temp(self.roms[0]),2)
         return temp
-    def report(self):
+    def _report(self):
         printl("Reporting temperature for",self.name)
         logger.increment_out()
         client.publish(self.name,str(self.get_temp()))
         wdt.feed()
         time.sleep(2)
-    def command(self,msg):
+    def _command(self,msg):
         pass
 class Bme280:
     def __init__(self, sda, scl,name):
@@ -141,7 +148,7 @@ class Bme280:
         temp,press,hum = self.sensor.read_compensated_data()
         dew = self.sensor.dew_point
         return temp,press,hum,dew
-    def report(self):
+    def _report(self):
         wdt.feed()
         data = self.get_data()
         printl("Reporting BME280 data for",self.name,": Temperature")
@@ -163,7 +170,7 @@ class Bme280:
         client.publish(self.name+"/rosny_bod",str(data[3]))
         wdt.feed()
         time.sleep(2)
-    def command(self, msg):
+    def _command(self, msg):
         pass
 class Rele:
     def __init__(self, pin,name,inverted=False):
@@ -179,18 +186,18 @@ class Rele:
         else:
             self.pin.value(not state)
         self.state = state
-    def report(self):
+    def _report(self):
         printl("Reporting state for",self.name)
         logger.increment_out()
         client.publish(self.name,str(self.get()))
         wdt.feed()
         time.sleep(2)
-    def command(self, msg):
+    def _command(self, msg):
         if str(self.name)+"0" in msg:
             self.set(0)
         if str(self.name)+"1" in msg:
             self.set(1)
-class Ventil:
+class Button:
     def __init__(self, pin,name,inverted=False):
         self.pin = Pin(pin,mode=Pin.IN)
         self.name = name
@@ -199,15 +206,111 @@ class Ventil:
         if self.inverted:
             return not self.pin.value()
         return bool(self.pin.value())
-    def report(self):
+    def _report(self):
         printl("Reporting state for",self.name)
         logger.increment_out()
         client.publish(self.name,str(self.get()))
         wdt.feed()
         time.sleep(2)
-    def command(self, msg):
+    def _command(self, msg):
         pass
+class KIT:
+    def __init__(self,pins,name):
+        from rotary import Rotary
+        from machine import Pin, PWM
+        from lcd import LiquidCrystal
+        self.name = name
+        self.rt = Rotary(*pins[0:3], press=self._rtbtn,clockwise=self._rtrotate,
+                         counterclockwise=self._rtrotate,snapRotation=True)
+        self.lcd = LiquidCrystal(*pins[3:9])
+        self.kill = Pin(pins[9], Pin.IN, Pin.PULL_UP)
+        self.kill.irq(trigger=Pin.IRQ_FALLING, handler=lambda pin: self._killbtn())
+        self.buzzer = PWM(Pin(pins[10]), freq=440, duty_u16=0)
+        self.lcd.begin(20,4)
+        self.lcd.setCursor(0,0)
+        self.data = []
+        self.lcd.print("KIT Initialized")
+    def _rtbtn(self):
+        if hasattr(self, 'init'):
+            printl("Rotary button pressed")
+    def _killbtn(self):
+        if hasattr(self, 'init'):
+            printl("Kill button pressed")   
+            client.publish("reset","ALL")
+    def _rtrotate(self):
+        if hasattr(self, 'init'):
+            printl("Rotary rotated")
+            self.update_lcd()
+    def update_lcd(self):
+        index = self.rt.get_value() % 15
+        if index == 0:
+            strings = ["Kotel","Rele","Zapnuto" if self.data[index] == "on" else "Vypnuto",""]
+        elif index == 1:
+            strings = ["Kotel","Ventil","Boiler" if self.data[index] == "on" else "Topení",""]
+        elif index == 2:
+            strings = ["Kotel","Boiler",self.data[index]+"°C",""]
+        elif index == 3:
+            strings = ["Kotel","Vstup",self.data[index]+"°C",""]
+        elif index == 4:
+            strings = ["Kotel","Vystup",self.data[index]+"°C",""]
+        elif index == 5:
+            strings = ["Obyvak","Teplota",self.data[index]+"°C",""]
+        elif index == 6:
+            strings = ["Obyvak","Vlhkost",self.data[index]+"%",""]
+        elif index == 7:
+            strings = ["Obyvak","Tlak",self.data[index]+"kPa",""]
+        elif index == 8:
+            strings = ["Obyvak","Rosny bod",self.data[index]+"°C",""]
+        elif index == 9:
+            strings = ["Koupelna","Teplota",self.data[index]+"°C",""]
+        elif index == 10:
+            strings = ["Koupelna","Vlhkost",self.data[index]+"%",""]
+        elif index == 11:
+            strings = ["Koupelna","Tlak",self.data[index]+"kPa",""]
+        elif index == 12:
+            strings = ["Koupelna","Rosny bod",self.data[index]+"°C",""]
+        elif index == 13:
+            strings = ["Borek","Rele","Zapnuto" if self.data[index] == "on" else "Vypnuto",""]
+        elif index == 14:
+            strings = ["Mirosov","SG",("1" if self.data[index+1] == "on" else "0")+("1" if self.data[index] == "on" else "0"),""]
 
+        self.lcd.clear()
+        self.lcd.setCursor(0,0)
+        self.lcd.print(strings[0])
+        self.lcd.setCursor(1,0)
+        self.lcd.print(strings[1])
+        self.lcd.setCursor(2,0)
+        self.lcd.print(str(strings[2]))
+        self.lcd.setCursor(3,0)
+        self.lcd.print(strings[3])
+
+    def get(self):
+        return ""
+    
+    def buzz(self):
+        self.buzzer.duty_u16(32768)
+        time.sleep(0.2)
+        self.buzzer.duty_u16(0)
+
+    def _report(self):
+        printl("Reporting state for",self.name)
+        logger.increment_out()
+        client.publish(self.name,str(self.get()))
+        self.init = True
+        wdt.feed()
+        time.sleep(2)
+    def _command(self, msg):
+        if str(self.name)+"/buzz" in msg:
+            self.buzz()
+        if str(self.name)+"/data:" in msg:
+            data = msg.split("|")[1:]
+            printl("KIT received raw data:",data)
+            self.data = []
+            for d in data:
+                self.data.append(d)
+            printl("KIT received data:",self.data)
+            self.update_lcd()
+            
 
 logger = Logger(
     log_count_mqtt=config["SETTINGS"]["LOG_COUNT_MQTT"],
@@ -220,6 +323,7 @@ printl("Logger initialized")
 
 peripherals = []
 name_base = config["MQTT"]["ID"]
+kit = None
 for p in config["PERIPHERALS"]:
     if p["TYPE"]=="RELE":
         peripherals.append(Rele(p["PIN"],name_base+"/"+p["NAME"],p["INVERTED"]))
@@ -228,7 +332,11 @@ for p in config["PERIPHERALS"]:
     if p["TYPE"]=="DHT":
         peripherals.append(Sonda(p["PIN"],name_base+"/"+p["NAME"]))
     if p["TYPE"]=="BUTTON":
-        peripherals.append(Ventil(p["PIN"],name_base+"/"+p["NAME"],p["INVERTED"]))
+        peripherals.append(Button(p["PIN"],name_base+"/"+p["NAME"],p["INVERTED"]))
+    if p["TYPE"]=="TESTING":
+        kit = KIT(p["PINS"],name_base+"/"+p["NAME"])
+        peripherals.append(kit)
+
 
 
 printl(f"Initialized {len(peripherals)} peripherals: {[p.name for p in peripherals]}")
@@ -292,7 +400,7 @@ def report_state(timer):
     try:
         for p in peripherals:
             wdt.feed()
-            p.report()
+            p._report()
     except Exception as e:
         printl("Failed to publish state:", e)
     wdt.feed()
@@ -317,7 +425,7 @@ def sub_cb(topic, msg):
         respond_status(client)
     elif topic == TOPIC_CONTROL_I:
         for p in peripherals:
-            p.command(msg.decode())
+            p._command(msg.decode())
     elif topic == TOPIC_DATA_I and msg_me:
         report_state(None)
     elif topic == TOPIC_LOG_I:

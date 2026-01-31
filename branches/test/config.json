@@ -5,10 +5,7 @@
         "ID":"test"
     },
     "PERIPHERALS":[
-       {"TYPE":"BUTTON","NAME":"pin1","PIN":1, "INVERTED":false},
-       {"TYPE":"BUTTON","NAME":"pin2","PIN":2, "INVERTED":true},
-       {"TYPE":"BUTTON","NAME":"pin3","PIN":3, "INVERTED":false},
-       {"TYPE":"BUTTON","NAME":"pin4","PIN":4, "INVERTED":true}
+       {"TYPE":"TESTING","NAME":"kit","PINS":[2,3,4,5,6,7,8,9,10,11,15]}
     ],
     
     "SETTINGS":{

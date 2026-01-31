@@ -4,6 +4,8 @@
     {"name":"wifi.json","path":""},
     {"name":"mqtt.json","path":""},
     {"name":"bme280_float.py","path":"lib/"},
+    {"name":"lcd.py","path":"lib/"},
+    {"name":"rotary.py","path":"lib/"},
     {"name":"simple.mpy","path":"lib/umqtt/"},
     {"name":"robust.mpy","path":"lib/umqtt/"},
     {"name":"config.json","path":"branches/borek/"},
