@@ -4,6 +4,6 @@
     "LOG_SEND_RAM":false,
     "LOG_SEND_PRINT":false,
     "LOG_SEND_TIME":false,
-    "USE_WDT":true,
+    "USE_WDT":false,
     "WDT_TIMEOUT":8000
 }
