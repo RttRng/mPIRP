@@ -5,7 +5,9 @@
         "ID":"obyvak"
     },
     "PERIPHERALS":[
-        {"TYPE":"BME","NAME":"bme","SCL_PIN":27,"SDA_PIN":26}
+        {"TYPE":"BME","NAME":"bme","SCL_PIN":27,"SDA_PIN":26},
+        {"TYPE":"RELE","NAME":"rele","PIN":18,"INVERTED":false},
+        {"TYPE":"DHT","NAME":"sonda","PIN":0}
     ],
     "SETTINGS":{
         "PERIODIC_SEND_S":300000,
