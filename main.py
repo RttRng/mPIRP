@@ -23,10 +23,8 @@ try:
     print("error found, will try to update")
     with open("update_flag.txt","w") as f:
         f.write("1")
-    try:
-            os.remove("error_flag.txt")
-    except OSError:
-        pass
+    os.remove("error_flag.txt")
+    
 except OSError:
     pass        
 
@@ -185,7 +183,7 @@ class Rele:
         self.name = name
         self.state = 0
         self.inverted = inverted
-        TOPIC_CONTROL_I_LIST.append(b'control/'+identity.decode()+b'/'+self.name.decode())
+        TOPIC_CONTROL_I_LIST.append(b'control/'+identity+b'/'+self.name)
     def get(self):
         return self.state
     def set(self,state):
