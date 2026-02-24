@@ -19,13 +19,26 @@ config["WIFI"].update(wifi_config)
 config["MQTT"].update(mqtt_config)
 import os
 try:
+    os.stat("error_flag.txt")
+    print("error found, will try to update")
+    with open("update_flag.txt","w") as f:
+        f.write("1")
+    try:
+            os.remove("error_flag.txt")
+    except OSError:
+        pass
+except OSError:
+    pass        
+
+try:
     os.stat("update_flag.txt")
     print("Updating...")
     import pull
     update_log = "[UPDATE]"+pull.update(config["WIFI"])
 except OSError:
     pass
-
+with open("error_flag.txt","w") as f:
+        f.write("1")
 
 
 import time
@@ -388,6 +401,10 @@ def mqtt_loop():
         led.off()
         active_timer = Timer()
         active_timer.init(period=600_000, mode=Timer.PERIODIC, callback=timout_callback)
+        try:
+            os.remove("error_flag.txt")
+        except OSError:
+            pass
         printl("Entering main loop")
         while True:
             try:
