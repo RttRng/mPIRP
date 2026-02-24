@@ -128,7 +128,7 @@ class Sonda:
         client.publish(self.name,str(self.get_temp()))
         wdt.feed()
         time.sleep(2)
-    def command(self,msg):
+    def command(self,topic,msg):
         pass
 class Bme280:
     def __init__(self, sda, scl,name):
@@ -164,7 +164,7 @@ class Bme280:
         client.publish(self.name+"/rosny_bod",str(data[3]))
         wdt.feed()
         time.sleep(2)
-    def command(self, msg):
+    def command(self, topic, msg):
         pass
 class Rele:
     def __init__(self, pin,name,inverted=False):
@@ -172,7 +172,7 @@ class Rele:
         self.name = name
         self.state = 0
         self.inverted = inverted
-        TOPIC_CONTROL_I_LIST.append(identity.decode()+b'/'+self.name)
+        TOPIC_CONTROL_I_LIST.append(b'control/'+identity.decode()+b'/'+self.name)
     def get(self):
         return self.state
     def set(self,state):
@@ -188,7 +188,7 @@ class Rele:
         wdt.feed()
         time.sleep(2)
     def command(self, topic, msg):
-        if topic == identity.decode()+b'/'+self.name:
+        if topic == b'control/'+identity.decode()+b'/'+self.name:
             if "0" in msg:
                 self.set(0)
             if "1" in msg:
@@ -208,7 +208,7 @@ class Ventil:
         client.publish(self.name,str(self.get()))
         wdt.feed()
         time.sleep(2)
-    def command(self, msg):
+    def command(self, topic, msg):
         pass
 
 
