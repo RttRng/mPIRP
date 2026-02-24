@@ -172,7 +172,7 @@ class Rele:
         self.name = name
         self.state = 0
         self.inverted = inverted
-        TOPIC_CONTROL_I_LIST.append(b'control/'+identity.decode()+b'/'+self.name)
+        TOPIC_CONTROL_I_LIST.append(b'control/'+identity.decode()+b'/'+self.name.decode())
     def get(self):
         return self.state
     def set(self,state):
@@ -188,7 +188,7 @@ class Rele:
         wdt.feed()
         time.sleep(2)
     def command(self, topic, msg):
-        if topic == b'control/'+identity.decode()+b'/'+self.name:
+        if topic == b'control/'+identity.decode()+b'/'+self.name.decode():
             if "0" in msg:
                 self.set(0)
             if "1" in msg:
