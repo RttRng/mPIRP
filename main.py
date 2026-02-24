@@ -43,6 +43,7 @@ TOPIC_DATA_I = b'give'
 TOPIC_LOG_O = b'log'
 TOPIC_UPDATE_I = b'update'
 TOPIC_RESET_I = b'reset'
+TOPIC_CONTROL_I_LIST = []
 name_base = config["MQTT"]["ID"]
 TOPIC_LOG_I = bytes(name_base+"/log_override","utf-8")
 TOPIC_I = [TOPIC_CHECK_I, TOPIC_CONTROL_I, TOPIC_DATA_I, TOPIC_LOG_I, TOPIC_UPDATE_I, TOPIC_RESET_I]
@@ -171,6 +172,7 @@ class Rele:
         self.name = name
         self.state = 0
         self.inverted = inverted
+        TOPIC_CONTROL_I_LIST.append(identity.decode()+b'/'+self.name)
     def get(self):
         return self.state
     def set(self,state):
@@ -185,11 +187,12 @@ class Rele:
         client.publish(self.name,str(self.get()))
         wdt.feed()
         time.sleep(2)
-    def command(self, msg):
-        if str(self.name)+"0" in msg:
-            self.set(0)
-        if str(self.name)+"1" in msg:
-            self.set(1)
+    def command(self, topic, msg):
+        if topic == identity.decode()+b'/'+self.name:
+            if "0" in msg:
+                self.set(0)
+            if "1" in msg:
+                self.set(1)
 class Ventil:
     def __init__(self, pin,name,inverted=False):
         self.pin = Pin(pin,mode=Pin.IN)
@@ -315,9 +318,9 @@ def sub_cb(topic, msg):
         global check_recieved
         check_recieved = True
         respond_status(client)
-    elif topic == TOPIC_CONTROL_I:
+    elif topic in TOPIC_CONTROL_I_LIST:
         for p in peripherals:
-            p.command(msg.decode())
+            p.command(topic.decode(),msg.decode())
     elif topic == TOPIC_DATA_I and msg_me:
         report_state(None)
     elif topic == TOPIC_LOG_I:
@@ -374,6 +377,7 @@ def mqtt_loop():
     try:
         wdt.feed()
         led.on()
+        TOPIC_I.extend(TOPIC_CONTROL_I_LIST)
         connect_best_wifi()
         connect_mqtt()
         # Start periodic button state reporting
