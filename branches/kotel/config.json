@@ -5,11 +5,11 @@
         "ID":"kotel"
     },
     "PERIPHERALS":[
-        {"TYPE":"RELE","NAME":"rele","PIN":22,"INVERTED":false},
+        {"TYPE":"RELE","NAME":"rele","PIN":22,"INVERTED":true},
         {"TYPE":"DHT","NAME":"sonda1","PIN":19},
         {"TYPE":"DHT","NAME":"sonda2","PIN":20},
         {"TYPE":"DHT","NAME":"sonda3","PIN":21},
-        {"TYPE":"BUTTON","NAME":"ventil","PIN":26, "INVERTED":false}
+        {"TYPE":"BUTTON","NAME":"ventil","PIN":26, "INVERTED":true}
     ],
     
     "SETTINGS":{

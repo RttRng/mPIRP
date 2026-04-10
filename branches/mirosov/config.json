@@ -5,8 +5,8 @@
         "ID":"mirosov"
     },
     "PERIPHERALS":[
-        {"TYPE":"RELE","NAME":"rele1","PIN":26,"INVERTED":false},
-        {"TYPE":"RELE","NAME":"rele2","PIN":27,"INVERTED":false}
+        {"TYPE":"RELE","NAME":"rele1","PIN":26,"INVERTED":true},
+        {"TYPE":"RELE","NAME":"rele2","PIN":27,"INVERTED":true}
     ],
     "SETTINGS":{
         "PERIODIC_SEND_S":300000,

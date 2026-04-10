@@ -5,7 +5,7 @@
         "ID":"borek"
     },
     "PERIPHERALS":[
-        {"TYPE":"RELE","NAME":"rele","PIN":17,"INVERTED":false}
+        {"TYPE":"RELE","NAME":"rele","PIN":17,"INVERTED":true}
     ],
     "SETTINGS":{
         "PERIODIC_SEND_S":300000,
