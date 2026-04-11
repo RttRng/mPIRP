@@ -1,9 +1,10 @@
 {"files":[
-    {"name":"version.ver","path":""},
+    {"name":"version.json","path":""},
     {"name":"log_override.json","path":""},
     {"name":"wifi.json","path":""},
     {"name":"mqtt.json","path":""},
     {"name":"bme280_float.py","path":"lib/"},
+    {"name":"irv_lib.py","path":"lib/"},
     {"name":"simple.mpy","path":"lib/umqtt/"},
     {"name":"robust.mpy","path":"lib/umqtt/"},
     {"name":"config.json","path":"branches/borek/"},

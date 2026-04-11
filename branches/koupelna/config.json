@@ -8,12 +8,11 @@
         {"TYPE":"BME","NAME":"bme","SCL_PIN":27,"SDA_PIN":26}
     ],
     "SETTINGS":{
-        "PERIODIC_SEND_S":300000,
+        "PERIODIC_SEND_MS":300000,
         "LOG_COUNT_MQTT":true,
-        "LOG_SEND_RAM":true,
-        "LOG_SEND_PRINT":true,
-        "LOG_SEND_TIME":true,
         "USE_WDT":true,
-        "WDT_TIMEOUT":8000
+        "WDT_TIMEOUT":8000,
+        "USE_UNSTABLE":false,
+        "USE_UNTESTED":true
     }
 }
