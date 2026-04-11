@@ -39,6 +39,10 @@ def update(credentials):
                 print("Failed to download file:", name, resp.status_code)
                 resp.close()
                 return "Failed to download file: " + name + " " + str(resp.status_code)
+            if(name=="version.ver"):
+                with open("/"+path+name, "r") as v:
+                    if(v==resp.content):
+                        raise Exception("Already at version "+v)
             with open("/"+path+name, "w") as f:
                 f.write(resp.content)
             resp.close()

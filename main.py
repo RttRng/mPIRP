@@ -33,9 +33,9 @@ from machine import Pin, Timer, reset, WDT
 from umqtt.robust import MQTTClient
 
 
+
 TOPIC_CHECK_I = b'check'
 TOPIC_CHECK_O = b'status'
-TOPIC_DATA_O = b'data'
 TOPIC_CONTROL_I = b'control'
 TOPIC_DATA_I = b'give'
 TOPIC_LOG_O = b'log'
@@ -43,6 +43,7 @@ TOPIC_UPDATE_I = b'update'
 TOPIC_RESET_I = b'reset'
 TOPIC_CONTROL_I_LIST = []
 name_base = config["MQTT"]["ID"]
+TOPIC_REPORT_O = name_base
 TOPIC_LOG_I = bytes(name_base+"/log_override","utf-8")
 TOPIC_I = [TOPIC_CHECK_I, TOPIC_CONTROL_I, TOPIC_DATA_I, TOPIC_LOG_I, TOPIC_UPDATE_I, TOPIC_RESET_I]
 
@@ -122,10 +123,7 @@ class Sonda:
         return temp
     def report(self):
         printl("Reporting temperature for",self.name)
-        logger.increment_out()
-        client.publish(self.name,str(self.get_temp()))
-        wdt.feed()
-        time.sleep(2)
+        return {self.name:str(self.get_temp())}
     def command(self,topic,msg):
         pass
 class Bme280:
@@ -141,27 +139,15 @@ class Bme280:
         dew = self.sensor.dew_point
         return temp,press,hum,dew
     def report(self):
-        wdt.feed()
         data = self.get_data()
         printl("Reporting BME280 data for",self.name,": Temperature")
-        logger.increment_out()
-        client.publish(self.name+"/teplota",str(data[0]))
-        time.sleep(2)
         printl("Reporting BME280 data for",self.name,": Pressure")
-        logger.increment_out()
-        client.publish(self.name+"/tlak",str(data[1]))
-        wdt.feed()
-        time.sleep(2)
         printl("Reporting BME280 data for",self.name,": Humidity")
-        logger.increment_out()
-        client.publish(self.name+"/vlhkost",str(data[2]))
-        wdt.feed()
-        time.sleep(2)
         printl("Reporting BME280 data for",self.name,": Dew Point")
-        logger.increment_out()
-        client.publish(self.name+"/rosny_bod",str(data[3]))
-        wdt.feed()
-        time.sleep(2)
+        return {self.name+"/teplota":str(data[0]),
+                self.name+"/tlak":str(data[1]),
+                self.name+"/vlhkost":str(data[2]),
+                self.name+"/rosny_bod":str(data[3])}
     def command(self, topic, msg):
         pass
 class Rele:
@@ -182,10 +168,7 @@ class Rele:
         self.state = state
     def report(self):
         printl("Reporting state for",self.name)
-        logger.increment_out()
-        client.publish(self.name,str(self.get()))
-        wdt.feed()
-        time.sleep(2)
+        return {self.name:str(self.get())}
     def command(self, topic, msg):
         if topic == 'control/'+self.name:
             if "false" in msg:
@@ -203,10 +186,7 @@ class Ventil:
         return bool(self.pin.value())
     def report(self):
         printl("Reporting state for",self.name)
-        logger.increment_out()
-        client.publish(self.name,str(self.get()))
-        wdt.feed()
-        time.sleep(2)
+        return {self.name:str(self.get())}
     def command(self, topic, msg):
         pass
 
@@ -291,10 +271,13 @@ def respond_status(client):
 def report_state(timer):
     wdt.feed()
     printl("Reporting state...")
+    report = {}
     try:
         for p in peripherals:
             wdt.feed()
-            p.report()
+            report.update(p.report())
+        printl(json.dumps(report))
+        client.publish(TOPIC_REPORT_O,json.dumps(report))
     except Exception as e:
         printl("Failed to publish state:", e)
     wdt.feed()
