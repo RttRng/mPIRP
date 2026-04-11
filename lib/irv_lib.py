@@ -1,18 +1,33 @@
 import os
-import time
 import ssl
 import gc
-from machine import Pin, Timer, reset, WDT, SoftI2C
+from machine import Pin, Timer, reset, WDT, SoftI2C, deepsleep, lightsleep
 from umqtt.robust import MQTTClient
 from bme280_float import BME280
 from ds18x20 import DS18X20
 from onewire import OneWire
 import json
+import network
+from time import sleep
+
+    
 class Logger:
     def __init__(self,debug:bool) -> None:
         self.debug = debug
         self.count_in = 0
         self.count_out = 0
+        self.name = "unknown"
+        self.version = {"version":"unknown"}
+        self.wdt = FakeWDT()
+        self.led = StatusLight()
+    def prepare_log(self):
+        return {self.name+"/version":self.version["version"],
+                self.name+"/in":self.count_in,
+                self.name+"/out":self.count_out}
+    def set_wdt(self,wdt):
+        self.wdt = wdt
+    def feed(self):
+        self.wdt.feed()
     def setDebug(self,state:bool):
         self.debug = state
     def increment_in(self):
@@ -46,7 +61,8 @@ class StatusLight:
     def toggle(self):
         self.led.value(not self.led.value())
 class Sonda:
-    def __init__(self, pin,name):
+    def __init__(self, pin,name,logger):
+        self.logger = logger
         self.name = name
         self.pin = Pin(pin)
         self.sensor = DS18X20(OneWire(self.pin))
@@ -60,12 +76,13 @@ class Sonda:
         temp = round(self.sensor.read_temp(self.roms[0]),2)
         return temp
     def report(self):
-        printl("Reporting temperature for",self.name)
+        self.logger.print("Reporting temperature for",self.name)
         return {self.name:str(self.get_temp())}
     def command(self,topic,msg):
         pass
 class Bme280:
-    def __init__(self, sda, scl,name):
+    def __init__(self, sda, scl,name,logger):
+        self.logger = logger
         self.name = name
         self.sda = Pin(sda)
         self.scl = Pin(scl)
@@ -76,10 +93,10 @@ class Bme280:
         return temp,press,hum,dew
     def report(self):
         data = self.get_data()
-        printl("Reporting BME280 data for",self.name,": Temperature")
-        printl("Reporting BME280 data for",self.name,": Pressure")
-        printl("Reporting BME280 data for",self.name,": Humidity")
-        printl("Reporting BME280 data for",self.name,": Dew Point")
+        self.logger.print("Reporting BME280 data for",self.name,": Temperature")
+        self.logger.print("Reporting BME280 data for",self.name,": Pressure")
+        self.logger.print("Reporting BME280 data for",self.name,": Humidity")
+        self.logger.print("Reporting BME280 data for",self.name,": Dew Point")
         return {self.name+"/teplota":str(data[0]),
                 self.name+"/tlak":str(data[1]),
                 self.name+"/vlhkost":str(data[2]),
@@ -87,23 +104,25 @@ class Bme280:
     def command(self, topic, msg):
         pass
 class Rele:
-    def __init__(self, pin,name,inverted=False):
+    def __init__(self, pin,name,logger,inverted=False):
+        self.logger = logger
         self.pin = Pin(pin,mode=Pin.OUT,pull=Pin.PULL_DOWN,value=0)
         self.name = name
         self.state = 0
         self.inverted = inverted
-        TOPIC_CONTROL_I_LIST.append('control/'+self.name)
+    def get_topic(self):
+        return 'control/'+self.name
     def get(self):
         return self.state
     def set(self,state):
-        printl("Switching "+self.name+" to "+str(state))
+        self.logger.print("Switching "+self.name+" to "+str(state))
         if not self.inverted:
             self.pin.value(bool(state))
         else:
             self.pin.value(not state)
         self.state = state
     def report(self):
-        printl("Reporting state for",self.name)
+        self.logger.print("Reporting state for",self.name)
         return {self.name:str(self.get())}
     def command(self, topic, msg):
         if topic == 'control/'+self.name:
@@ -112,7 +131,8 @@ class Rele:
             if "true" in msg:
                 self.set(1)
 class Ventil:
-    def __init__(self, pin,name,inverted=False):
+    def __init__(self, pin,name,logger,inverted=False):
+        self.logger = logger
         self.pin = Pin(pin,mode=Pin.IN)
         self.name = name
         self.inverted = inverted
@@ -121,27 +141,23 @@ class Ventil:
             return not self.pin.value()
         return bool(self.pin.value())
     def report(self):
-        printl("Reporting state for",self.name)
+        self.logger.print("Reporting state for",self.name)
         return {self.name:str(self.get())}
     def command(self, topic, msg):
         pass
 
 
-def connect_best_wifi(max_attempts=5):
-    wdt.feed()
-    import network
-    from time import sleep
+def connect_best_wifi(logger,credentials,max_attempts=5):
+    logger.wdt.feed()
     wlan = network.WLAN(network.STA_IF)
     try:
         wlan.deinit()
     except:
-        printl("Wi-Fi deinit failed")
+        logger.print("Wi-Fi deinit failed")
     wlan.active(True)
-    credentials = config["WIFI"]
-
     for attempt in range(max_attempts):
-        wdt.feed()
-        printl(f"Wi-Fi scan attempt {attempt + 1}")
+        logger.wdt.feed()
+        logger.print(f"Wi-Fi scan attempt {attempt + 1}")
         nets = wlan.scan()
         best_net = None
         best_rssi = -999
@@ -151,115 +167,89 @@ def connect_best_wifi(max_attempts=5):
                 best_net = ssid
                 best_rssi = rssi
         if best_net:
-            printl(f"Connecting to: {best_net} (RSSI: {best_rssi})")
+            logger.print(f"Connecting to: {best_net} (RSSI: {best_rssi})")
             wlan.connect(best_net, credentials[best_net])
             timeout = 15
             while not wlan.isconnected() and timeout > 0:
-                printl(".", end="")
-                wdt.feed()
+                logger.print(".", end="")
+                logger.wdt.feed()
                 sleep(1)
                 timeout -= 1
             if wlan.isconnected():
-                printl("\nConnected to Wi-Fi!")
-                printl("IP:"+str(wlan.ifconfig()[0]))
+                logger.print("\nConnected to Wi-Fi!")
+                logger.print("IP:"+str(wlan.ifconfig()[0]))
                 return True
             else:
-                printl("Wi-Fi connection timed out")
+                logger.print("Wi-Fi connection timed out")
         else:
-            printl("No known networks found")
+            logger.print("No known networks found")
         sleep(1)
     raise Exception("Failed to connect to Wi-Fi after multiple attempts")
 
-def respond_status(client):
-    msg = str(config["MQTT"]["ID"]).encode()
-    try:
-        logger.increment_out()
-        client.publish(TOPIC_CHECK_O, msg)
-        printl(f"Responded to CHECK with: {msg}")
-    except Exception as e:
-        printl("Failed to publish CHECK response:", e)
-# Send state every 5 minutes
-def report_state(timer):
-    wdt.feed()
-    printl("Reporting state...")
-    report = {}
-    try:
-        for p in peripherals:
-            wdt.feed()
-            report.update(p.report())
-        printl(json.dumps(report))
-        client.publish(TOPIC_REPORT_O,json.dumps(report))
-    except Exception as e:
-        printl("Failed to publish state:", e)
-    wdt.feed()
-    try:
-        msg = logger.prepare_log()
-        if msg!="":
-            logger.increment_out()
-            client.publish(TOPIC_LOG_O,msg)
-            printl("Sent log")
-    except Exception as e:
-        printl("Failed to publish log:", e)
-            
-# Callback for received messages
-def sub_cb(topic, msg):
-    logger.increment_in()
-    msg_me = msg == identity.encode() or msg == b'' or msg == b'ALL'
-    printl("Message for me:",msg_me)
-    printl(f"Received message on {topic}: {msg}")
-    if topic == TOPIC_CHECK_I and msg_me:
-        global check_recieved
-        check_recieved = True
-        respond_status(client)
-    elif topic == TOPIC_DATA_I and msg_me:
-        report_state(None)
-    elif topic == TOPIC_LOG_I:
+
+class MQTT:
+    # MQTT connection with retry
+    def __init__(self,logger,credentials,callback,peripherals,topics_i,topics_o,max_attempts=5) -> None:
+        self.logger = logger
+        self.topics_i = topics_i
+        self.topics_o = topics_o
+        self.peripherals = peripherals
+        self.credentials = credentials
+        self.logger.wdt.feed()
+        for attempt in range(max_attempts):
+            self.logger.wdt.feed()
+            try:
+                self.client = MQTTClient(
+                    credentials["ID"],
+                    credentials["BROKER"],
+                    port=credentials["PORT"],
+                    user=credentials["USERNAME"],
+                    password=credentials["PASSWORD"],
+                    ssl=ssl
+                )
+                self.client.set_callback(callback)
+                self.client.connect()
+                self.logger.wdt.feed()
+                self.logger.print("Connected to broker")
+                return
+            except Exception as e:
+                self.logger.print(f"MQTT connection failed (attempt {attempt + 1}):", e)
+                sleep(2)
+
+        raise Exception("Failed to connect to MQTT after multiple attempts")
+
+    def subscribe_list(self,subscribe): 
+                for topic in subscribe:
+                    self.client.subscribe(topic)
+                    self.logger.print("Subscribed to",topic)
+                self.logger.wdt.feed()
+                return
+        
+    def respond_status(self):
+        msg = str(self.credentials["ID"]).encode()
         try:
-            new_settings = json.loads(msg)
-            # Save updated settings to file
-            with open("log_override.json", "w") as j:
-                json.dump(new_settings, j)
-            reset()  # Restart to apply new settings
+            self.logger.increment_out()
+            self.client.publish(self.topics_o["CHECK"], msg)
+            self.logger.print(f"Responded to CHECK with: {msg}")
         except Exception as e:
-            printl("Failed to update log settings:", e)
-    elif topic == TOPIC_UPDATE_I and msg_me:
-        with open("update_flag.txt","w") as f:
-            f.write("1")
-            reset()
-    elif topic == TOPIC_RESET_I and msg_me:
-        reset()
-    else:
-        for p in peripherals:
-            p.command(topic.decode(),msg.decode())
-
-
-# MQTT connection with retry
-def connect_mqtt(max_attempts=5):
-    wdt.feed()
-    global client
-    for attempt in range(max_attempts):
-        wdt.feed()
+            self.logger.print("Failed to publish CHECK response:", e)
+    def report_state(self,timer):
+        self.logger.wdt.feed()
+        self.logger.print("Reporting state...")
+        report = {}
         try:
-            client = MQTTClient(
-                config["MQTT"]["ID"],
-                config["MQTT"]["BROKER"],
-                port=config["MQTT"]["PORT"],
-                user=config["MQTT"]["USERNAME"],
-                password=config["MQTT"]["PASSWORD"],
-                ssl=ssl
-            )
-            client.set_callback(sub_cb)
-            client.connect()
-            wdt.feed()
-            printl("Connected to HiveMQ Cloud")
-            for topic in TOPIC_I:
-                client.subscribe(topic)
-                printl("Subscribed to",topic)
-                client.check_msg()
-            wdt.feed()
-            return True
+            for p in self.peripherals:
+                self.logger.wdt.feed()
+                report.update(p.report())
+            report.update(self.logger.prepare_log())
+            self.logger.print(json.dumps(report))
+            self.logger.increment_out()
+            self.client.publish(self.topics_o["REPORT"],json.dumps(report))
+            self.logger.print("Reported state")
+            sleep(3)
         except Exception as e:
-            printl(f"MQTT connection failed (attempt {attempt + 1}):", e)
-            time.sleep(2)
+            self.logger.print("Failed to publish state:", e)
+        self.logger.wdt.feed()
+        
 
-    raise Exception("Failed to connect to MQTT after multiple attempts")
+    

@@ -1,6 +1,4 @@
 {"files":[
-    {"name":"version.json","path":""},
-    {"name":"log_override.json","path":""},
     {"name":"wifi.json","path":""},
     {"name":"mqtt.json","path":""},
     {"name":"bme280_float.py","path":"lib/"},
@@ -14,7 +12,11 @@
     {"name":"config.json","path":"branches/mirosov/"},
     {"name":"config.json","path":"branches/test/"},
     {"name":"pull.py","path":""},
-    {"name":"main.py","path":""}
+    {"name":"main.py","path":""},
+    {"name":"boot.py","path":""},
+    {"name":"version.json","path":""}
+
+    
 ],
  "dirs":["lib","lib/umqtt","branches","branches/borek","branches/kotel","branches/obyvak","branches/koupelna","branches/mirosov","branches/test"]
 }

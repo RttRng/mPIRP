@@ -13,10 +13,9 @@
     
     "SETTINGS":{
         "PERIODIC_SEND_MS":300000,
-        "LOG_COUNT_MQTT":true,
-        "USE_WDT":true,
         "WDT_TIMEOUT":8000,
         "USE_UNSTABLE":true,
-        "USE_UNTESTED":true
+        "USE_UNTESTED":true,
+        "BATTERY":true
     }
 }

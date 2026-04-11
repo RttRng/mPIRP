@@ -1,26 +1,49 @@
-def update(credentials):
+def update(version,config,logger):
     try:
-        connect_best_wifi(credentials)
+        logger.wdt.feed()
         import urequests
         with open("api.key", "r") as f:
             key = f.read().strip()
         with open("base_url.txt", "r") as f:
             base_url = f.read().strip()
+        url = base_url+"version.json"
+        headers = {"X-API-KEY": key}
+        logger.wdt.feed()
+        response = urequests.get(url, headers=headers)
+        new_version = {}
+        if response.status_code == 200:
+            new_version = response.json()
+            logger.print("Version fetched!")
+        else:
+            response.close()
+            return "Failed to fetch version: " + str(response.status_code)
+        response.close()
+        logger.print("Version:", new_version)
+        use_untested = config["SETTINGS"]["USE_UNTESTED"]
+        use_unstable = config["SETTINGS"]["USE_UNSTABLE"]
+        if not use_untested and not new_version["tested"]:
+            return "Untested version"
+        if not use_unstable and not new_version["stable"]:
+            return "Unstable version"
+        if new_version["version"] == version["version"]:
+            return "Already at this version, skipping"
+        
         url = base_url+"manifest.json"
         headers = {"X-API-KEY": key}
+        logger.wdt.feed()
         response = urequests.get(url, headers=headers)
         manifest = {}
         if response.status_code == 200:
             manifest = response.json()
-            print("Manifest fetched!")
+            logger.print("Manifest fetched!")
         else:
-            print("Failed to fetch manifest:", response.status_code)
             response.close()
             return "Failed to fetch manifest: " + str(response.status_code)
         response.close()
         print("Manifest:", manifest)
         import os
         dirs = manifest["dirs"]
+        logger.wdt.feed()
         for dir in dirs:
             try:
                 os.mkdir(dir)
@@ -28,72 +51,22 @@ def update(credentials):
                 if e.args[0] == 17:  # EEXIST
                     pass
                 else:
-                    print("Failed to create directory:", dir, e)
                     return "Failed to create directory: " + dir
+        logger.wdt.feed()
         for file_info in manifest["files"]:
             name = file_info["name"]
             path = file_info["path"]
-            print("Downloading", name, "to", "/"+path) 
+            logger.print("Downloading", name, "to", "/"+path) 
+            logger.wdt.feed()
             resp = urequests.get(base_url+path+name, headers=headers)
             if resp.status_code != 200:
-                print("Failed to download file:", name, resp.status_code)
                 resp.close()
                 return "Failed to download file: " + name + " " + str(resp.status_code)
-            if(name=="version.ver"):
-                with open("/"+path+name, "r") as v:
-                    if(v==resp.content):
-                        raise Exception("Already at version "+v)
             with open("/"+path+name, "w") as f:
                 f.write(resp.content)
             resp.close()
-        try:
-            os.remove("update_flag.txt")
-        except OSError:
-            pass
-        print("Update completed successfully!")
+        logger.print("Update completed successfully!")
         import machine
         machine.reset()
     except Exception as e:
-        print("Update failed:", e)
         return "Update failed: " + str(e)
-
-
-
-def connect_best_wifi(credentials):
-    max_attempts = 5
-    import network
-    from time import sleep
-    wlan = network.WLAN(network.STA_IF)
-    try:
-        wlan.deinit()
-    except:
-        print("Wi-Fi deinit failed")
-    wlan.active(True)
-    for attempt in range(max_attempts):
-        print(f"Wi-Fi scan attempt {attempt + 1}")
-        nets = wlan.scan()
-        best_net = None
-        best_rssi = -999
-        for ssid_bytes, _, _, rssi, _, _ in nets:
-            ssid = ssid_bytes.decode()
-            if ssid in credentials and rssi > best_rssi:
-                best_net = ssid
-                best_rssi = rssi
-        if best_net:
-            print(f"Connecting to: {best_net} (RSSI: {best_rssi})")
-            wlan.connect(best_net, credentials[best_net])
-            timeout = 15
-            while not wlan.isconnected() and timeout > 0:
-                print(".", end="")
-                sleep(1)
-                timeout -= 1
-            if wlan.isconnected():
-                print("\nConnected to Wi-Fi!")
-                print("IP:"+str(wlan.ifconfig()[0]))
-                return True
-            else:
-                print("Wi-Fi connection timed out")
-        else:
-            print("No known networks found")
-        sleep(1)
-    raise Exception("Failed to connect to Wi-Fi after multiple attempts")

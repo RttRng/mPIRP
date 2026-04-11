@@ -1,4 +1,5 @@
 from irv_lib import *
+import pull
 wdt = FakeWDT()
 try:
     # This fill throw exception if run from terminal
@@ -16,119 +17,144 @@ identity = get_id()
 config = read_json(f"/branches/{identity}/config.json")
 wifi_config = read_json("wifi.json")
 mqtt_config = read_json("mqtt.json")
-log_config = read_json("log_override.json")
 version = read_json("version.json")
 logger.print("Version:",version["version"],"" if version["tested"] else ",untested","" if version["stable"] else ",unstable")
 logger.print("Identity:",identity)
-config["SETTINGS"].update(log_config)
 config["WIFI"].update(wifi_config)
 config["MQTT"].update(mqtt_config)
-
-logger.print("Initializing WDT")
-wdt = FakeWDT()
-if config["SETTINGS"]["USE_WDT"] and not logger.debug:
-    logger.print("real WDT enabled")
-    wdt = WDT(timeout=config["SETTINGS"]["WDT_TIMEOUT"])
+logger.version = version
+logger.name = config["MQTT"]["ID"]
 
 
 
-TOPIC_CHECK_I = b'check'
-TOPIC_CHECK_O = b'status'
-TOPIC_CONTROL_I = b'control'
-TOPIC_DATA_I = b'give'
-TOPIC_LOG_O = b'log'
-TOPIC_UPDATE_I = b'update'
-TOPIC_RESET_I = b'reset'
-TOPIC_CONTROL_I_LIST = []
 name_base = config["MQTT"]["ID"]
-TOPIC_REPORT_O = name_base
-TOPIC_LOG_I = bytes(name_base+"/log_override","utf-8")
-TOPIC_I = [TOPIC_CHECK_I, TOPIC_CONTROL_I, TOPIC_DATA_I, TOPIC_LOG_I, TOPIC_UPDATE_I, TOPIC_RESET_I]
-
-check_recieved = False
-
-
-
-
-
-
-
-
+TOPIC_I = {"CHECK":b'check',
+           "CONTROL":b'control',
+           "DATA":b'give',
+           "RESET":b'reset',
+           }
+TOPIC_I_LIST = [x for x in TOPIC_I.values()]
+TOPIC_O = {"CHECK":b'status',
+           "REPORT":name_base
+           }
 
 peripherals = []
 name_base = config["MQTT"]["ID"]
 for p in config["PERIPHERALS"]:
     if p["TYPE"]=="RELE":
-        peripherals.append(Rele(p["PIN"],name_base+"/"+p["NAME"],p["INVERTED"]))
+        rele = Rele(pin=p["PIN"],name=name_base+"/"+p["NAME"],logger=logger,inverted=p["INVERTED"])
+        peripherals.append(rele)
+        TOPIC_I_LIST.append(bytes(rele.get_topic(),"utf-8"))
+
     if p["TYPE"]=="BME":
-        peripherals.append(Bme280(p["SDA_PIN"],p["SCL_PIN"],name_base+"/"+p["NAME"]))
+        peripherals.append(Bme280(sda=p["SDA_PIN"],scl=p["SCL_PIN"],logger=logger,name=name_base+"/"+p["NAME"]))
     if p["TYPE"]=="DHT":
-        peripherals.append(Sonda(p["PIN"],name_base+"/"+p["NAME"]))
+        peripherals.append(Sonda(pin=p["PIN"],name=name_base+"/"+p["NAME"],logger=logger))
     if p["TYPE"]=="BUTTON":
-        peripherals.append(Ventil(p["PIN"],name_base+"/"+p["NAME"],p["INVERTED"]))
-
-
+        peripherals.append(Ventil(pin=p["PIN"],name=name_base+"/"+p["NAME"],logger=logger,inverted=p["INVERTED"]))
 logger.print(f"Initialized {len(peripherals)} peripherals: {[p.name for p in peripherals]}")
 
+def mqtt_callback(topic, msg):
+        logger.increment_in()
+        msg_me = msg == identity.encode() or msg == b'' or msg == b'ALL'
+        logger.print("Message for me:",msg_me)
+        logger.print(f"Received message on {topic}: {msg}")
+        if topic == TOPIC_I["CHECK"] and msg_me:
+            mqtt.respond_status()
+        elif topic == TOPIC_I["DATA"] and msg_me:
+            mqtt.report_state(None)
+        elif topic == TOPIC_I["CHECK"] and msg_me:
+            reset()
+        else:
+            for p in peripherals:
+                p.command(topic.decode(),msg.decode())
 
+def main_common():
+    try:
+        global mqtt
+        logger.wdt.feed()
+        logger.led.on()
+        connect_best_wifi(logger=logger,credentials=config["WIFI"],max_attempts=5)
+        logger.print("Update?")
+        logger.print(pull.update(version,config,logger))
+        mqtt = MQTT(logger=logger,credentials=config["MQTT"],callback=mqtt_callback,peripherals=peripherals,topics_o=TOPIC_O,topics_i=TOPIC_I,max_attempts=5)
+        mqtt.subscribe_list(TOPIC_I_LIST)
+    except Exception as e:
+        logger.print("Startup error:", e)
 
 # Main loop
-def mqtt_loop():
-#     try:
-#         wdt.feed()
-#         led.on()
-#         TOPIC_I.extend(TOPIC_CONTROL_I_LIST)
-#         connect_best_wifi()
-#         connect_mqtt()
-#         # Start periodic button state reporting
-#         timer = Timer()
-#         timer.init(period=config["SETTINGS"]["PERIODIC_SEND_S"], mode=Timer.PERIODIC, callback=report_state)
-#         report_state(timer)
-#         wdt.feed()
-#         led.off()
-#         active_timer = Timer()
-#         active_timer.init(period=600_000, mode=Timer.PERIODIC, callback=timout_callback)
-#         printl("Entering main loop")
-#         while True:
-#             try:
-#                 wdt.feed()
-#                 printl("Checking for MQTT message...")
-#                 client.check_msg()
-#                 gc.collect()
-#                 wdt.feed()
-#                 time.sleep(3)
-#             except Exception as e:
-#                 printl("MQTT error during loop:", e)
-#                 wdt.feed()
-#                 time.sleep(5)
-#                 wdt.feed()
-#                 connect_mqtt()  # Reconnect on failure
+def main_loop():
+    try:
+        global mqtt
+        timer = Timer()
+        timer.init(period=config["SETTINGS"]["PERIODIC_SEND_MS"], mode=Timer.PERIODIC, callback=mqtt.report_state)
+        mqtt.report_state(timer)
+        logger.wdt.feed()
+        logger.led.off()
+        logger.print("Entering main loop")
+        while True:
+            try:
+                logger.wdt.feed()
+                logger.print("Checking for MQTT message...")
+                mqtt.client.check_msg()
+                gc.collect()
+                wdt.feed()
+                sleep(3)
+            except Exception as e:
+                logger.print("Error during loop:", e)
+                sleep(5)
+    except Exception as e:
+        logger.print("Loop error:", e)
+    finally:
+        try:
+            mqtt.client.disconnect()
+            logger.print("Disconnected from MQTT")
+        except:
+            pass
+def main_lite():
+    try:
+        global mqtt
+        mqtt.report_state(None)
+        logger.wdt.feed()
+        logger.led.off()
+        logger.print("Entering lite loop")
+        loops_remaining = 5
+        while loops_remaining>0:
+            logger.print("Loops remaining:",loops_remaining)
+            loops_remaining -= 1
+            try:
+                logger.wdt.feed()
+                logger.print("Checking for MQTT message...")
+                mqtt.client.check_msg()
+                wdt.feed()
+                sleep(3)
+            except Exception as e:
+                logger.print("Error during lite:", e)
+                sleep(5)
+    except Exception as e:
+        logger.print("Loop error:", e)
+    
 
-#     except Exception as e:
-#         printl("Startup error:", e)
-#     finally:
-#         try:
-#             client.disconnect()
-#             printl("Disconnected from MQTT")
-#         except:
-#             pass
-
-def timout_callback(t):
-#     global check_recieved
-#     if not check_recieved:
-#         printl("No CHECK received in 10 minutes, resetting")
-#         reset()
-#     check_recieved = False    
-
-printl("starting")
-printl(config["MQTT"]["ID"])
-
-time.sleep(1)
-led.off()
-printl("Waiting for keyboard interupt")
-time.sleep(4)
-
-mqtt_loop()
-printl("reseting")
-time.sleep(5)
-reset()
+sleep(1)
+logger.led.off()
+logger.print("Waiting for keyboard interupt")
+sleep(4)
+battery = config["SETTINGS"]["BATTERY"]
+logger.print("Initializing WDT")
+if not logger.debug and not battery:
+    logger.print("real WDT enabled")
+    logger.set_wdt(WDT(timeout=config["SETTINGS"]["WDT_TIMEOUT"]))
+logger.print("Running on battery" if battery else "Running from cable")
+mqtt = None
+main_common()
+if battery:
+    main_lite()
+    logger.print("going to sleep")
+    # sleep for 15 mins
+    deepsleep(900000)
+else:
+    main_loop()
+    logger.print("reseting")
+    if not logger.debug:
+        sleep(5)
+        reset()
