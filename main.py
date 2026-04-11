@@ -63,7 +63,7 @@ def mqtt_callback(topic, msg):
             mqtt.respond_status()
         elif topic == TOPIC_I["DATA"] and msg_me:
             mqtt.report_state(None)
-        elif topic == TOPIC_I["CHECK"] and msg_me:
+        elif topic == TOPIC_I["RESET"] and msg_me:
             reset()
         else:
             for p in peripherals:
